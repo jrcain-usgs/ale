@@ -2,16 +2,20 @@ import os
 import json
 import unittest
 from unittest.mock import PropertyMock, patch
+from unittest.mock import PropertyMock, patch
 
 import pytest
 
 import ale
 from ale.drivers.mro_drivers import MroCtxPds3LabelNaifSpiceDriver, MroCtxIsisLabelNaifSpiceDriver, MroCtxIsisLabelIsisSpiceDriver
 from ale.drivers.mro_drivers import MroHiRiseIsisLabelNaifSpiceDriver, MroMarciIsisLabelNaifSpiceDriver, MroCrismIsisLabelNaifSpiceDriver
+from ale.drivers.mro_drivers import MroHiRiseIsisLabelNaifSpiceDriver, MroMarciIsisLabelNaifSpiceDriver, MroCrismIsisLabelNaifSpiceDriver
 
+from conftest import get_image, get_image_kernels, get_isd, convert_kernels, get_image_label, compare_dicts
 from conftest import get_image, get_image_kernels, get_isd, convert_kernels, get_image_label, compare_dicts
 
 @pytest.fixture(scope='module')
+def test_ctx_kernels():
 def test_ctx_kernels():
     kernels = get_image_kernels('B10_013341_1010_XN_79S172W')
     updated_kernels, binary_kernels = convert_kernels(kernels)
@@ -19,6 +23,32 @@ def test_ctx_kernels():
     for kern in binary_kernels:
         os.remove(kern)
 
+@pytest.fixture(scope='module')
+def test_hirise_kernels():
+    kernels = get_image_kernels('PSP_001446_1790_BG12_0')
+    updated_kernels, binary_kernels = convert_kernels(kernels)
+    yield updated_kernels
+    for kern in binary_kernels:
+        os.remove(kern)
+
+@pytest.fixture(scope='module')
+def test_marci_kernels():
+    kernels = get_image_kernels('U02_071865_1322_MA_00N193W')
+    updated_kernels, binary_kernels = convert_kernels(kernels)
+    yield updated_kernels
+    for kern in binary_kernels:
+        os.remove(kern)
+
+@pytest.fixture(scope='module')
+def test_crism_kernels():
+    kernels = get_image_kernels('FRT00003B73_01_IF156S_TRR2')
+    updated_kernels, binary_kernels = convert_kernels(kernels)
+    yield updated_kernels
+    for kern in binary_kernels:
+        os.remove(kern)
+
+@pytest.mark.parametrize("label_type, kernel_type", [('pds3', 'naif'), ('isis3', 'naif'), ('isis3', 'isis')])
+def test_mro_ctx_load(test_ctx_kernels, label_type, kernel_type):
 @pytest.fixture(scope='module')
 def test_hirise_kernels():
     kernels = get_image_kernels('PSP_001446_1790_BG12_0')
@@ -55,10 +85,20 @@ def test_mro_ctx_load(test_ctx_kernels, label_type, kernel_type):
         isd_str = ale.loads(label_file, props={'kernels': test_ctx_kernels})
         compare_isd = get_isd('ctx')
 
+    if label_type == 'isis3' and kernel_type == 'isis':
+        label_file = get_image('B10_013341_1010_XN_79S172W')
+        isd_str = ale.loads(label_file)
+        compare_isd = get_isd('ctx_isis')
+    else:
+        isd_str = ale.loads(label_file, props={'kernels': test_ctx_kernels})
+        compare_isd = get_isd('ctx')
+
     isd_obj = json.loads(isd_str)
 
     if label_type == 'isis3' and kernel_type == 'naif':
         compare_isd['image_samples'] = 5000
+        compare_isd["projection"] = '+proj=sinu +lon_0=148.36859083039 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs'
+        compare_isd["geotransform"] = [-219771.1526456, 1455.4380969907, 0.0, 5175537.8728989, 0.0, -1455.4380969907]
 
     comparison = compare_dicts(isd_obj, compare_isd)
     assert comparison == []
