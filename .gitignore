@@ -222,3 +222,6 @@ dmypy.json
 *.CUB
 *.img
 *.IMG
+
+# Visual Studio Code Config
+.vscode
