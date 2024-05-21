@@ -7,7 +7,7 @@ from ale.base.type_sensor import Framer
 from ale.base.type_distortion import LoDistortion
 from ale.base.base import Driver
 
-class LoMediumCameraIsisLabelNaifSpiceDriver():
+class LoMediumCameraIsisLabelNaifSpiceDriver(Framer, IsisLabel, NaifSpice, LoDistortion, Driver):
     @property
     def instrument_id(self):
         """
