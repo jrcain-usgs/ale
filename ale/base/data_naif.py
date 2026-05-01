@@ -3,7 +3,6 @@ import spiceypy as spice
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
-import logging
 import json 
 import os
 
@@ -32,9 +31,22 @@ class NaifSpice():
         Called when the context is created. This is used
         to get the kernels furnished.
         """
-        logger.debug(f"Loading kernels: {self.kernels}")
         if isinstance(self.kernels, list) and not self.use_web:
-            [pyspiceql.load(k) for k in self.kernels]
+            #try:
+                #[pyspiceql.load(k) for k in self.kernels]
+            for k in self.kernels:
+                try:
+                    pyspiceql.load(k)
+                except RuntimeError as err:
+                    logger.warning(f"SpiceQL Error: {err}")
+
+                    if os.path.isfile(k):
+                        logger.warning(f"Found {k} but could not load in SpiceQL.")
+                        logger.warning(f"Attempting to autocorrect path...")
+                        kernel_access.load_metakernel_with_new_root(k)
+                    else:
+                        raise FileNotFoundError(f"Kernel {k} is not a file.")
+
         elif isinstance(self.kernels, dict) and not self.use_web and not self.search_kernels:
             self.kset = pyspiceql.KernelSet(self.kernels)
         elif not self.use_web:
@@ -86,6 +98,8 @@ class NaifSpice():
             if 'kernels' in self._props.keys():
                 try:
                     self._kernels = kernel_access.get_kernels_from_isis_pvl(self._props['kernels'])
+                    # Report/record metakernel here?
+                    logger.error(f"self.kernels: {self._kernels}")
                 except Exception as e:
                     if isinstance(self._props['kernels'], list):
                         self._kernels = { "misc": self._props['kernels'] }

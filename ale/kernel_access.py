@@ -3,6 +3,7 @@ from glob import glob
 from itertools import groupby, chain
 import os
 from os import path
+from tempfile import NamedTemporaryFile
 import re
 import warnings
 from collections.abc import Iterable
@@ -10,8 +11,10 @@ from collections.abc import Iterable
 import numpy as np
 import pvl
 import json
+import pyspiceql
 
 from ale import spice_root
+from ale import logger
 from ale.util import get_isis_preferences
 from ale.util import get_isis_mission_translations
 from ale.util import read_pvl
@@ -19,6 +22,81 @@ from ale.util import search_isis_db
 from ale.util import dict_merge
 from ale.util import dict_to_lower
 from ale.util import expandvars
+
+def load_metakernel_with_new_root(kernel, new_root=spice_root, old_root='/usgs/cpkgs/isis3/data'):
+    """
+    Given a metakernel:
+    1. Replacing the old root with the new root.
+    2. Check if its kernels are visibile at the new root.
+    3. load the new metakernel (with updated root) from a temp file.
+    
+    Parameters
+    ----------
+    kernel : str
+             Path of the metakernel 
+             (Presumably, containing default PATH_VALUES that have failed)
+
+    new_root : str
+               The new root to use (Defaults to ALESPICEROOT/ISISROOT)
+
+    old_root : str
+               The old root to replace. (Defaults to /usgs/cpkgs/isis3/data)
+    """
+    # Check if mk is a file, show its contents
+    with open(kernel, 'r') as old_mk_file:
+        mklines = old_mk_file.readlines()
+
+    path_values = ""         # list of new paths
+    path_sym_dict = {}       # dict of new paths with keys
+    kernels_section = False  # Are we at the kernels list section of the metakernel?
+    missing_kernels = False  # Check to see if kernels are still missing at new path
+    found_kernels = False    # Check to see if any kernels were actually found at new path
+
+    for line_num, mkline in enumerate(mklines):
+
+        # Check if kernels exist under the new path
+        if kernels_section:
+            for symbol, path in path_sym_dict.items():
+                mkline = re.sub('\$'+symbol, path , mkline)
+            matches = re.findall("'(.*?)'", mkline)
+            if len(matches) is 1:
+                if not os.path.isfile(matches[0]):
+                    logger.debug(f"Kernel Does Not Exist at new path: {matches[0]}")
+                    missing_kernels = True
+                    break
+                else:
+                    found_kernels = True
+
+        # Make a dictionary of path substitutions
+        elif re.search('PATH_VALUES\s*=', mkline):
+            if "ALESPICEROOT" in os.environ:
+                kernel_root = os.environ["ALESPICEROOT"]
+            elif "ISISDATA" in os.environ:
+                kernel_root = os.environ["ISISDATA"]
+            if kernel_root.endswith('/'):
+                kernel_root = kernel_root[:-1]
+            mkline = re.sub('/usgs/cpkgs/isis3/data', kernel_root, mkline)
+            path_values = re.findall("'(.*?)'", mkline)
+            mklines[line_num] = mkline
+        elif re.search('PATH_SYMBOLS\s*=', mkline):
+            matches = re.findall("'(.*?)'", mkline)
+            for index, key in enumerate(matches):
+                path_sym_dict[key] = path_values[index]
+        elif re.search('KERNELS_TO_LOAD\s*=', mkline):
+            kernels_section = True
+    
+    if found_kernels and not missing_kernels:
+        # Kernels were found at the new location, load new temp mk in spiceql
+        new_mk_text = "".join(mklines)
+        with NamedTemporaryFile(suffix='.tm', mode='w', delete=False) as new_mk_file:
+            new_mk_file.write(new_mk_text)
+            new_mk_file.flush()
+            try:
+                pyspiceql.load(new_mk_file.name)
+            except Exception as err:
+                raise Exception(f"SpiceQL Error: {err}")
+    else:
+        raise FileNotFoundError(f"No kernels from this metakernel were found at the new root: {new_root}")
 
 def get_metakernels(spice_dir=spice_root, missions=set(), years=set(), versions=set()):
     """
