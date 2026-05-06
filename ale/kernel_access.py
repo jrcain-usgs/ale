@@ -69,13 +69,10 @@ def load_metakernel_with_new_root(kernel, new_root=spice_root, old_root='/usgs/c
 
         # Make a dictionary of path substitutions
         elif re.search('PATH_VALUES\s*=', mkline):
-            if "ALESPICEROOT" in os.environ:
-                kernel_root = os.environ["ALESPICEROOT"]
-            elif "ISISDATA" in os.environ:
-                kernel_root = os.environ["ISISDATA"]
+            kernel_root = new_root
             if kernel_root.endswith('/'):
                 kernel_root = kernel_root[:-1]
-            mkline = re.sub('/usgs/cpkgs/isis3/data', kernel_root, mkline)
+            mkline = re.sub(old_root, kernel_root, mkline)
             path_values = re.findall("'(.*?)'", mkline)
             mklines[line_num] = mkline
         elif re.search('PATH_SYMBOLS\s*=', mkline):

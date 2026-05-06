@@ -1,15 +1,19 @@
 from importlib import reload
 from os.path import join
+from pathlib import Path
 
 import pytest
 import tempfile
 import pvl
 from unittest.mock import MagicMock, patch
 
+from conftest import get_image_label
+
 from collections import OrderedDict
 
 import ale
 from ale import kernel_access
+from ale.drivers.mro_drivers import MroCtxIsisLabelNaifSpiceDriver
 
 @pytest.fixture
 def cube_kernels():
@@ -45,6 +49,19 @@ def pvl_four_group():
       Messenger    = $ISIS3DATA/messenger
     EndGroup
     """
+
+def test_load_metakernel_with_new_root():
+
+    test_image = 'B10_013341_1010_XN_79S172W'
+
+    label = get_image_label(test_image, "isis3")
+    driver = MroCtxIsisLabelNaifSpiceDriver(label)
+
+    mro_test_mk = join(Path(__file__).parent.absolute(), 'data', test_image, 'mro_test_mk.tm')
+    kernel_access.load_metakernel_with_new_root(mro_test_mk)
+    
+    assert driver.ephemeris_start_time == 297088762.24158406
+
 
 def test_find_kernels(cube_kernels, tmpdir):
     ck_db = """

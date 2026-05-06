@@ -32,8 +32,6 @@ class NaifSpice():
         to get the kernels furnished.
         """
         if isinstance(self.kernels, list) and not self.use_web:
-            #try:
-                #[pyspiceql.load(k) for k in self.kernels]
             for k in self.kernels:
                 try:
                     pyspiceql.load(k)
@@ -45,7 +43,7 @@ class NaifSpice():
                         logger.warning(f"Attempting to autocorrect path...")
                         kernel_access.load_metakernel_with_new_root(k)
                     else:
-                        raise FileNotFoundError(f"Kernel {k} is not a file.")
+                        raise FileNotFoundError(f"Kernel {k} is not a file. Is ALESPICEROOT ({spice_root}) set correctly?")
 
         elif isinstance(self.kernels, dict) and not self.use_web and not self.search_kernels:
             self.kset = pyspiceql.KernelSet(self.kernels)
