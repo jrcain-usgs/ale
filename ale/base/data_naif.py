@@ -31,25 +31,35 @@ class NaifSpice():
         Called when the context is created. This is used
         to get the kernels furnished.
         """
+        logger.debug(f"Loading kernels: {self.kernels}")
         if isinstance(self.kernels, list) and not self.use_web:
-            for k in self.kernels:
-                try:
-                    pyspiceql.load(k)
-                except RuntimeError as err:
-                    logger.warning(f"SpiceQL Error: {err}")
-
-                    if os.path.isfile(k):
-                        logger.warning(f"Found {k} but could not load in SpiceQL.")
-                        logger.warning(f"Attempting to autocorrect path...")
-                        kernel_access.load_metakernel_with_new_root(k)
-                    else:
-                        raise FileNotFoundError(f"Kernel {k} is not a file. Is ALESPICEROOT ({spice_root}) set correctly?")
-
+            [pyspiceql.load(k) for k in self.kernels]
         elif isinstance(self.kernels, dict) and not self.use_web and not self.search_kernels:
             self.kset = pyspiceql.KernelSet(self.kernels)
         elif not self.use_web:
-            logger.warn("No kernels were specified. No kernels will be loaded.")
+            logger.warning("No kernels were specified. No kernels will be loaded.")
         return self
+
+    # def __enter__(self):
+    #     if isinstance(self.kernels, list) and not self.use_web:
+    #         for k in self.kernels:
+    #             try:
+    #                 pyspiceql.load(k)
+    #             except RuntimeError as err:
+    #                 logger.warning(f"SpiceQL Error: {err}")
+
+    #                 if os.path.isfile(k):
+    #                     logger.warning(f"Found {k} but could not load in SpiceQL.")
+    #                     logger.warning(f"Attempting to autocorrect path...")
+    #                     kernel_access.load_metakernel_with_new_root(k)
+    #                 else:
+    #                     raise FileNotFoundError(f"Kernel {k} is not a file. Is ALESPICEROOT ({spice_root}) set correctly?")
+
+    #     elif isinstance(self.kernels, dict) and not self.use_web and not self.search_kernels:
+    #         self.kset = pyspiceql.KernelSet(self.kernels)
+    #     elif not self.use_web:
+    #         logger.warn("No kernels were specified. No kernels will be loaded.")
+    #     return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """
@@ -121,8 +131,10 @@ class NaifSpice():
                 if spice_root:
                     search_results = kernel_access.get_metakernels(spice_root, missions=self.short_mission_name, years=self.utc_start_time.year, versions='latest')
                     if search_results['count'] != 0:
-                        self._kernels = [search_results['data'][0]['path']]
-                        logger.debug(f"Found metakernel: {self._kernels}")
+                        logger.debug(f"Found metakernel: {search_results['data'][0]['path']}")
+                        self._kernels = kernel_access.get_kernels_from_metakernel(search_results['data'][0]['path'])
+                        logger.debug(f"Retrieved kernels: {self._kernels}")
+                        #self._kernels = [search_results['data'][0]['path']]
 
                 if self._kernels == {}:
                     logger.debug("Failed to find metakernels, falling back to SpiceQL")

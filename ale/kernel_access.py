@@ -23,7 +23,7 @@ from ale.util import dict_merge
 from ale.util import dict_to_lower
 from ale.util import expandvars
 
-def load_metakernel_with_new_root(kernel, new_root=spice_root, old_root='/usgs/cpkgs/isis3/data'):
+def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs/cpkgs/isis3/data'):
     """
     Given a metakernel:
     1. Replacing the old root with the new root.
@@ -42,58 +42,107 @@ def load_metakernel_with_new_root(kernel, new_root=spice_root, old_root='/usgs/c
     old_root : str
                The old root to replace. (Defaults to /usgs/cpkgs/isis3/data)
     """
+
+    if new_root.endswith('/'):
+        new_root = new_root[:-1]
+
     # Check if mk is a file, show its contents
-    with open(kernel, 'r') as old_mk_file:
+    extension = os.path.splitext(metakernel)[1]
+    if extension.lower() != '.tm':
+        raise ValueError(f'File {metakernel} is not a metakernel (does not have the .tm file extension).')
+
+    with open(metakernel, 'r') as old_mk_file:
         mklines = old_mk_file.readlines()
 
-    path_values = ""         # list of new paths
-    path_sym_dict = {}       # dict of new paths with keys
-    kernels_section = False  # Are we at the kernels list section of the metakernel?
-    missing_kernels = False  # Check to see if kernels are still missing at new path
-    found_kernels = False    # Check to see if any kernels were actually found at new path
+    # Path Symbols/Metakernel reading
+    path_values     = []        # base paths from kernel
+    default_paths   = {}        # dict of base paths
+    spiceroot_paths = {}        # dict of spice_root-based paths
+    kernels_section = False     # Are we at the kernels list section of the metakernel?
+    
+    # Kernel Lists
+    listed_kernels    = []      # kernels with path symbols as listed in metakernel
+    default_kernels   = []      # kernels with subbed mk path
+    spiceroot_kernels = []      # kernels with subbed spice root path
 
-    for line_num, mkline in enumerate(mklines):
+    missing_default_kernels   = False
+    missing_spiceroot_kernels = False
 
-        # Check if kernels exist under the new path
+    for mkline in mklines:
+        
+        logger.error(f"Processing Line:\n{mkline}")
+
+        # Add kernels to list
         if kernels_section:
-            for symbol, path in path_sym_dict.items():
-                mkline = re.sub('\$'+symbol, path , mkline)
-            matches = re.findall("'(.*?)'", mkline)
-            if len(matches) is 1:
-                if not os.path.isfile(matches[0]):
-                    logger.debug(f"Kernel Does Not Exist at new path: {matches[0]}")
-                    missing_kernels = True
-                    break
-                else:
-                    found_kernels = True
+            logger.error("kernel added")
+            listed_kernels.extend(re.findall("'(.*?)'", mkline))
 
         # Make a dictionary of path substitutions
-        elif re.search('PATH_VALUES\s*=', mkline):
-            kernel_root = new_root
-            if kernel_root.endswith('/'):
-                kernel_root = kernel_root[:-1]
-            mkline = re.sub(old_root, kernel_root, mkline)
+        elif re.search(r'PATH_VALUES\s*=', mkline):
             path_values = re.findall("'(.*?)'", mkline)
-            mklines[line_num] = mkline
-        elif re.search('PATH_SYMBOLS\s*=', mkline):
-            matches = re.findall("'(.*?)'", mkline)
-            for index, key in enumerate(matches):
-                path_sym_dict[key] = path_values[index]
-        elif re.search('KERNELS_TO_LOAD\s*=', mkline):
+        elif re.search(r'PATH_SYMBOLS\s*=', mkline):
+            symbols = re.findall("'(.*?)'", mkline)
+            for index, key in enumerate(symbols):
+                default_paths[key] = path_values[index]
+                spiceroot_paths[key] = re.sub(old_root, new_root, path_values[index])
+        
+        # Switch to looking for kernel paths
+        elif re.search(r'KERNELS_TO_LOAD\s*=', mkline):
             kernels_section = True
+
+    # logger.error("Metakernel read complete.")
+    # logger.error(f"Default Path Dict: {default_paths}")
+    # logger.error(f"SpiceRoot Paths Dict: {spiceroot_paths}")
+    # logger.error(f"Kernels Listed: {listed_kernels}")
+
+    if len(listed_kernels) == 0:
+        raise ValueError(f"No kernels were found listed in this metakernel: {metakernel}")
+
+    # Check default mk paths for kernels
+    for kernel in listed_kernels:
+        default_kernel = kernel
+        for symbol, path in default_paths.items():
+            default_kernel = re.sub(r'\$'+symbol, path , default_kernel)
+        if os.path.isfile(default_kernel):
+            default_kernels.append(default_kernel)
+        else:
+            logger.warning(f"Could not find kernel: {default_kernel}.  Looking under SPICE_ROOT...")
+            missing_default_kernels = True
+            break
     
-    if found_kernels and not missing_kernels:
-        # Kernels were found at the new location, load new temp mk in spiceql
-        new_mk_text = "".join(mklines)
-        with NamedTemporaryFile(suffix='.tm', mode='w', delete=False) as new_mk_file:
-            new_mk_file.write(new_mk_text)
-            new_mk_file.flush()
-            try:
-                pyspiceql.load(new_mk_file.name)
-            except Exception as err:
-                raise Exception(f"SpiceQL Error: {err}")
+    # If kernels missing from default, Check spice_root paths for kernels
+    if missing_default_kernels:
+        for kernel in listed_kernels:
+            spiceroot_kernel = kernel
+            for symbol, path in spiceroot_paths.items():
+                logger.error(f"Subbing {path} for {symbol} in {spiceroot_kernel}...")
+                spiceroot_kernel = re.sub(r'\$'+symbol, path , spiceroot_kernel)
+                logger.error(f"New kernel path: {spiceroot_kernel}")
+
+            if os.path.isfile(spiceroot_kernel):
+                spiceroot_kernels.append(spiceroot_kernel)
+            else:
+                missing_spiceroot_kernels = True
+                raise FileNotFoundError(f"""One or more kernel was missing from the default path in the metakernel,
+                                        so ALE looked under the ALESPICEROOT path for kernels, 
+                                        but could not find this kernel there: {spiceroot_kernel}""")
+    
+    if not missing_default_kernels and len(default_kernels) > 0:
+        return default_kernels
+    
+    elif not missing_spiceroot_kernels and len(spiceroot_kernels) > 0:
+        return spiceroot_kernels
+    
+    elif len(default_kernels) == 0 and len(spiceroot_kernels) == 0:
+        raise FileNotFoundError(f"""No kernels from this metakernel ({metakernel}) were found.
+                                ALE checked at the Metakernel paths: {path_values}
+                                ALE checked at the ALESPICEROOT path: {new_root}""")
     else:
-        raise FileNotFoundError(f"No kernels from this metakernel were found at the new root: {new_root}")
+        raise FileNotFoundError(f"""Some kernels from this metakernel were found, 
+                                but all the necessary kernels were not found in the same place.
+                                ALE checked at the ALESPICEROOT path: {new_root}
+                                ALE checked at the paths from the metakernel: {path_values}""")
+    
 
 def get_metakernels(spice_dir=spice_root, missions=set(), years=set(), versions=set()):
     """
