@@ -69,15 +69,12 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
     missing_spiceroot_kernels = False
 
     for mkline in mklines:
-        
-        logger.error(f"Processing Line:\n{mkline}")
 
-        # Add kernels to list
+        # 3. Add kernels to list
         if kernels_section:
-            logger.error("kernel added")
             listed_kernels.extend(re.findall("'(.*?)'", mkline))
 
-        # Make a dictionary of path substitutions
+        # 1. Make a dictionary of path substitutions
         elif re.search(r'PATH_VALUES\s*=', mkline):
             path_values = re.findall("'(.*?)'", mkline)
         elif re.search(r'PATH_SYMBOLS\s*=', mkline):
@@ -86,14 +83,9 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
                 default_paths[key] = path_values[index]
                 spiceroot_paths[key] = re.sub(old_root, new_root, path_values[index])
         
-        # Switch to looking for kernel paths
+        # 2. Switch to looking for kernel paths
         elif re.search(r'KERNELS_TO_LOAD\s*=', mkline):
             kernels_section = True
-
-    # logger.error("Metakernel read complete.")
-    # logger.error(f"Default Path Dict: {default_paths}")
-    # logger.error(f"SpiceRoot Paths Dict: {spiceroot_paths}")
-    # logger.error(f"Kernels Listed: {listed_kernels}")
 
     if len(listed_kernels) == 0:
         raise ValueError(f"No kernels were found listed in this metakernel: {metakernel}")
@@ -106,7 +98,7 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
         if os.path.isfile(default_kernel):
             default_kernels.append(default_kernel)
         else:
-            logger.warning(f"Could not find kernel: {default_kernel}.  Looking under SPICE_ROOT...")
+            logger.warning(f"Could not find kernel in paths from metakernal: {default_kernel}.  Looking under ALESPICEROOT...")
             missing_default_kernels = True
             break
     
@@ -115,10 +107,7 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
         for kernel in listed_kernels:
             spiceroot_kernel = kernel
             for symbol, path in spiceroot_paths.items():
-                logger.error(f"Subbing {path} for {symbol} in {spiceroot_kernel}...")
                 spiceroot_kernel = re.sub(r'\$'+symbol, path , spiceroot_kernel)
-                logger.error(f"New kernel path: {spiceroot_kernel}")
-
             if os.path.isfile(spiceroot_kernel):
                 spiceroot_kernels.append(spiceroot_kernel)
             else:
@@ -135,13 +124,13 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
     
     elif len(default_kernels) == 0 and len(spiceroot_kernels) == 0:
         raise FileNotFoundError(f"""No kernels from this metakernel ({metakernel}) were found.
-                                ALE checked at the Metakernel paths: {path_values}
+                                ALE checked at the paths from the metakernel: {path_values}
                                 ALE checked at the ALESPICEROOT path: {new_root}""")
     else:
         raise FileNotFoundError(f"""Some kernels from this metakernel were found, 
                                 but all the necessary kernels were not found in the same place.
-                                ALE checked at the ALESPICEROOT path: {new_root}
-                                ALE checked at the paths from the metakernel: {path_values}""")
+                                ALE checked at the paths from the metakernel: {path_values}
+                                ALE checked at the ALESPICEROOT path: {new_root}""")
     
 
 def get_metakernels(spice_dir=spice_root, missions=set(), years=set(), versions=set()):
