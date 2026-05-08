@@ -58,6 +58,9 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
     path_values     = []        # base paths from kernel
     default_paths   = {}        # dict of base paths
     spiceroot_paths = {}        # dict of spice_root-based paths
+
+    values_section = False
+    symbols_section = False
     kernels_section = False     # Are we at the kernels list section of the metakernel?
     
     # Kernel Lists
@@ -68,25 +71,45 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
     missing_default_kernels   = False
     missing_spiceroot_kernels = False
 
+    logger.trace("Getting vaules from MK file")
+
     for mkline in mklines:
 
-        # 3. Add kernels to list
+        # 6. Add kernels to list
         if kernels_section:
             listed_kernels.extend(re.findall("'(.*?)'", mkline))
 
+        # 4. Scan for Path Symbols
+        elif symbols_section:
+            # 5. Switch to looking for kernel paths
+            if re.search(r'KERNELS_TO_LOAD\s*=', mkline):
+                for index, key in enumerate(symbols):
+                    default_paths[key] = path_values[index]
+                    spiceroot_paths[key] = re.sub(old_root, new_root, path_values[index])
+                kernels_section = True
+                symbols_section = False
+                logger.trace(f"Path symbols: {symbols}")
+            else:
+                symbols.extend(re.findall("'(.*?)'", mkline))
+
+        # 2. Scan for path Prefixes
+        elif values_section:
+            # 3. Go to Symbols section
+            if re.search(r'PATH_SYMBOLS\s*=', mkline): 
+                symbols = re.findall("'(.*?)'", mkline)
+                symbols_section = True
+                values_section = False
+                logger.trace(f"Path values: {path_values}")
+            else:
+                path_values.extend(re.findall("'(.*?)'", mkline))
+
         # 1. Make a dictionary of path substitutions
         elif re.search(r'PATH_VALUES\s*=', mkline):
-            path_values = re.findall("'(.*?)'", mkline)
-        elif re.search(r'PATH_SYMBOLS\s*=', mkline):
-            symbols = re.findall("'(.*?)'", mkline)
-            for index, key in enumerate(symbols):
-                default_paths[key] = path_values[index]
-                spiceroot_paths[key] = re.sub(old_root, new_root, path_values[index])
+            path_values.extend(re.findall("'(.*?)'", mkline))
+            values_section = True
         
-        # 2. Switch to looking for kernel paths
-        elif re.search(r'KERNELS_TO_LOAD\s*=', mkline):
-            kernels_section = True
-
+    logger.trace(f"Listed Kernels in metakernel: {listed_kernels}") 
+        
     if len(listed_kernels) == 0:
         raise ValueError(f"No kernels were found listed in this metakernel: {metakernel}")
 
