@@ -71,7 +71,7 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
     missing_default_kernels   = False
     missing_spiceroot_kernels = False
 
-    logger.trace("Getting vaules from MK file")
+    logger.debug("Getting vaules from MK file")
 
     for mkline in mklines:
 
@@ -88,7 +88,7 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
                     spiceroot_paths[key] = re.sub(old_root, new_root, path_values[index])
                 kernels_section = True
                 symbols_section = False
-                logger.trace(f"Path symbols: {symbols}")
+                logger.debug(f"Path symbols: {symbols}")
             else:
                 symbols.extend(re.findall("'(.*?)'", mkline))
 
@@ -99,7 +99,7 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
                 symbols = re.findall("'(.*?)'", mkline)
                 symbols_section = True
                 values_section = False
-                logger.trace(f"Path values: {path_values}")
+                logger.debug(f"Path values: {path_values}")
             else:
                 path_values.extend(re.findall("'(.*?)'", mkline))
 
@@ -108,7 +108,7 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
             path_values.extend(re.findall("'(.*?)'", mkline))
             values_section = True
         
-    logger.trace(f"Listed Kernels in metakernel: {listed_kernels}") 
+    logger.debug(f"Listed Kernels in metakernel: {listed_kernels}") 
         
     if len(listed_kernels) == 0:
         raise ValueError(f"No kernels were found listed in this metakernel: {metakernel}")
