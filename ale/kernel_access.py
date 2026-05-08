@@ -43,17 +43,6 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
                The old root to replace. (Defaults to /usgs/cpkgs/isis3/data)
     """
 
-    if new_root.endswith('/'):
-        new_root = new_root[:-1]
-
-    # Check if mk is a file, show its contents
-    extension = os.path.splitext(metakernel)[1]
-    if extension.lower() != '.tm':
-        raise ValueError(f'File {metakernel} is not a metakernel (does not have the .tm file extension).')
-
-    with open(metakernel, 'r') as old_mk_file:
-        mklines = old_mk_file.readlines()
-
     # Path Symbols/Metakernel reading
     path_values     = []        # base paths from kernel
     default_paths   = {}        # dict of base paths
@@ -70,6 +59,23 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
 
     missing_default_kernels   = False
     missing_spiceroot_kernels = False
+    
+    check_spiceroot = True
+
+    if isinstance(new_root, str):
+        if new_root.endswith('/'):
+            new_root = new_root[:-1]
+    else:
+        check_spiceroot = False
+        logger.debug("new_root is not a string.  Likely, ALESPICEROOT is not set.\nCannot check ALESPICEROOT for corrected metakernel paths.")
+
+    # Check if mk is a file, show its contents
+    extension = os.path.splitext(metakernel)[1]
+    if extension.lower() != '.tm':
+        raise ValueError(f'File {metakernel} is not a metakernel (does not have the .tm file extension).')
+
+    with open(metakernel, 'r') as old_mk_file:
+        mklines = old_mk_file.readlines()
 
     logger.debug("Getting vaules from MK file")
 
@@ -85,7 +91,8 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
             if re.search(r'KERNELS_TO_LOAD\s*=', mkline):
                 for index, key in enumerate(symbols):
                     default_paths[key] = path_values[index]
-                    spiceroot_paths[key] = re.sub(old_root, new_root, path_values[index])
+                    if check_spiceroot:
+                        spiceroot_paths[key] = re.sub(old_root, new_root, path_values[index])
                 kernels_section = True
                 symbols_section = False
                 logger.debug(f"Path symbols: {symbols}")
@@ -121,12 +128,12 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
         if os.path.isfile(default_kernel):
             default_kernels.append(default_kernel)
         else:
-            logger.warning(f"Could not find kernel in paths from metakernal: {default_kernel}.  Looking under ALESPICEROOT...")
+            logger.warning(f"Could not find kernel in paths from metakernal: {default_kernel}.  Looking under ALESPICEROOT if set...")
             missing_default_kernels = True
             break
     
     # If kernels missing from default, Check spice_root paths for kernels
-    if missing_default_kernels:
+    if missing_default_kernels and check_spiceroot:
         for kernel in listed_kernels:
             spiceroot_kernel = kernel
             for symbol, path in spiceroot_paths.items():
@@ -146,15 +153,18 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
         return spiceroot_kernels
     
     elif len(default_kernels) == 0 and len(spiceroot_kernels) == 0:
-        raise FileNotFoundError(f"""No kernels from this metakernel ({metakernel}) were found.
-                                ALE checked at the paths from the metakernel: {path_values}
-                                ALE checked at the ALESPICEROOT path: {new_root}""")
+        errmsg = f"""No kernels from this metakernel ({metakernel}) were found.
+                ALE checked at the paths from the metakernel: {path_values}"""
+        if check_spiceroot:
+            errmsg = errmsg + f"\nALE checked at the ALESPICEROOT path: {new_root}"
+        raise FileNotFoundError(errmsg)
     else:
-        raise FileNotFoundError(f"""Some kernels from this metakernel were found, 
-                                but all the necessary kernels were not found in the same place.
-                                ALE checked at the paths from the metakernel: {path_values}
-                                ALE checked at the ALESPICEROOT path: {new_root}""")
-    
+        errmsg = "Some kernels from this metakernel were found, "
+        errmsg = errmsg + "but all the necessary kernels were not found in the same place."
+        errmsg = errmsg + f"\nALE checked at the paths from the metakernel: {path_values}"
+        if check_spiceroot:
+            errmsg = errmsg + f"\nALE checked at the ALESPICEROOT path: {new_root}"
+        raise FileNotFoundError(errmsg) 
 
 def get_metakernels(spice_dir=spice_root, missions=set(), years=set(), versions=set()):
     """
