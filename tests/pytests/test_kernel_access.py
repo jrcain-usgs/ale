@@ -54,18 +54,16 @@ def pvl_four_group():
 
 def test_get_kernels_from_metakernel():
 
-    test_image = 'B10_013341_1010_XN_79S172W'
-
-    mro_test_mk = join(Path(__file__).parent.absolute(), 'data', test_image, 'mro_test_mk.tm')
-    mro_test_path = join(Path(__file__).parent.absolute(), 'data', test_image)
+    mro_test_mk = join(Path(__file__).parent.absolute(), 'data', 'kernel_access', 'mro_test_mk.tm')
+    mro_test_path = join(Path(__file__).parent.absolute(), 'data', 'B10_013341_1010_XN_79S172W')
 
     kernels_from_mk = kernel_access.get_kernels_from_metakernel(mro_test_mk, mro_test_path)
 
-    mro_test_kernels = ['B10_013341_1010_XN_79S172W_0.bsp',
-                        'B10_013341_1010_XN_79S172W_1.bsp',
+    mro_test_kernels = ['B10_013341_1010_XN_79S172W_0.xsp',
+                        'B10_013341_1010_XN_79S172W_1.xsp',
                         'mro_ctx_v11.ti',
-                        'mro_sc_psp_090526_090601_0_sliced_-74000.bc',
-                        'mro_sc_psp_090526_090601_1_sliced_-74000.bc',
+                        'mro_sc_psp_090526_090601_0_sliced_-74000.xc',
+                        'mro_sc_psp_090526_090601_1_sliced_-74000.xc',
                         'mro_sclkscet_00082_65536.tsc']
     
     for index, kernel in enumerate(mro_test_kernels):

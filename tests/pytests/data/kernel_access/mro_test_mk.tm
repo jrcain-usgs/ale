@@ -30,11 +30,11 @@ KPL/MK
       PATH_SYMBOLS    = ( 'TESTKERNELS' )
 
       KERNELS_TO_LOAD = (
-                          '$TESTKERNELS/B10_013341_1010_XN_79S172W_0.bsp'
-                          '$TESTKERNELS/B10_013341_1010_XN_79S172W_1.bsp'
+                          '$TESTKERNELS/B10_013341_1010_XN_79S172W_0.xsp'
+                          '$TESTKERNELS/B10_013341_1010_XN_79S172W_1.xsp'
                           '$TESTKERNELS/mro_ctx_v11.ti'
-                          '$TESTKERNELS/mro_sc_psp_090526_090601_0_sliced_-74000.bc'
-                          '$TESTKERNELS/mro_sc_psp_090526_090601_1_sliced_-74000.bc'
+                          '$TESTKERNELS/mro_sc_psp_090526_090601_0_sliced_-74000.xc'
+                          '$TESTKERNELS/mro_sc_psp_090526_090601_1_sliced_-74000.xc'
                           '$TESTKERNELS/mro_sclkscet_00082_65536.tsc'
                         )
 
