@@ -45,12 +45,14 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
 
     # Path Symbols/Metakernel reading
     path_values     = []        # base paths from kernel
+    path_symbols    = []
+
     default_paths   = {}        # dict of base paths
     spiceroot_paths = {}        # dict of spice_root-based paths
 
-    values_section = False
-    symbols_section = False
-    kernels_section = False     # Are we at the kernels list section of the metakernel?
+    # values_section = False
+    # symbols_section = False
+    # kernels_section = False     # Are we at the kernels list section of the metakernel?
     
     # Kernel Lists
     listed_kernels    = []      # kernels with path symbols as listed in metakernel
@@ -74,70 +76,63 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
     if extension.lower() != '.tm':
         raise ValueError(f'File {metakernel} is not a metakernel (does not have the .tm file extension).')
 
-    with open(metakernel, 'r') as old_mk_file:
-        mklines = old_mk_file.readlines()
+    logger.debug("Reading vaules from MK file")
 
-    logger.debug("Getting vaules from MK file")
-
-    for mkline in mklines:
-
-        # 6. Add kernels to list
-        if kernels_section:
-            listed_kernels.extend(re.findall("'(.*?)'", mkline))
-
-        # 4. Scan for Path Symbols
-        elif symbols_section:
-            # 5. Switch to looking for kernel paths
-            if re.search(r'KERNELS_TO_LOAD\s*=', mkline):
-                for index, key in enumerate(symbols):
-                    default_paths[key] = path_values[index]
-                    if check_spiceroot:
-                        spiceroot_paths[key] = re.sub(old_root, new_root, path_values[index])
-                kernels_section = True
-                symbols_section = False
-                logger.debug(f"Path symbols: {symbols}")
-            else:
-                symbols.extend(re.findall("'(.*?)'", mkline))
-
-        # 2. Scan for path Prefixes
-        elif values_section:
-            # 3. Go to Symbols section
-            if re.search(r'PATH_SYMBOLS\s*=', mkline): 
-                symbols = re.findall("'(.*?)'", mkline)
-                symbols_section = True
-                values_section = False
-                logger.debug(f"Path values: {path_values}")
-            else:
-                path_values.extend(re.findall("'(.*?)'", mkline))
-
-        # 1. Make a dictionary of path substitutions
-        elif re.search(r'PATH_VALUES\s*=', mkline):
+    with open(metakernel, 'r') as mk:
+        mkline = mk.readline()
+        while(not re.search(r'PATH_VALUES\s*=', mkline)):
+            mkline = mk.readline()
+        while(not re.search(r'PATH_SYMBOLS\s*=', mkline)):
+            # PATH_VALUES section
             path_values.extend(re.findall("'(.*?)'", mkline))
-            values_section = True
-        
-    logger.debug(f"Listed Kernels in metakernel: {listed_kernels}") 
+            mkline = mk.readline()
+        logger.debug(f"Path values: {path_values}")
+        while(not re.search(r'KERNELS_TO_LOAD\s*=', mkline)):
+            # PATH_SYMBOLS section
+            path_symbols.extend(re.findall("'(.*?)'", mkline))
+            mkline = mk.readline()
+        logger.debug(f"Path symbols: {path_symbols}")
+        # Create Path Dicts
+        for index, key in enumerate(path_symbols):
+            default_paths[key] = path_values[index]
+            if check_spiceroot:
+                spiceroot_paths[key] = re.sub(old_root, new_root, path_values[index])
+        while(not re.search(r'\\begintext', mkline)):
+            # KERNELS_TO_LOAD section
+            listed_kernels.extend(re.findall("'(.*?)'", mkline))
+            mkline = mk.readline()
+        logger.debug(f"Listed Kernels in metakernel: {listed_kernels}") 
         
     if len(listed_kernels) == 0:
         raise ValueError(f"No kernels were found listed in this metakernel: {metakernel}")
 
+    # Set env vars (mk default)
+    for symbol, path in default_paths.items():
+        os.environ[symbol] = path
+
     # Check default mk paths for kernels
     for kernel in listed_kernels:
-        default_kernel = kernel
-        for symbol, path in default_paths.items():
-            default_kernel = re.sub(r'\$'+symbol, path , default_kernel)
+        # default_kernel = kernel
+        # for symbol, path in default_paths.items():
+        default_kernel = os.path.expandvars(kernel)
         if os.path.isfile(default_kernel):
             default_kernels.append(default_kernel)
         else:
             logger.warning(f"Could not find kernel in paths from metakernal: {default_kernel}.  Looking under ALESPICEROOT if set...")
             missing_default_kernels = True
             break
-    
+
     # If kernels missing from default, Check spice_root paths for kernels
     if missing_default_kernels and check_spiceroot:
+
+        # Set env vars (spiceroot)
+        for symbol, path in spiceroot_paths.items():
+            os.environ[symbol] = path
+
         for kernel in listed_kernels:
-            spiceroot_kernel = kernel
-            for symbol, path in spiceroot_paths.items():
-                spiceroot_kernel = re.sub(r'\$'+symbol, path , spiceroot_kernel)
+            # spiceroot_kernel = kernel
+            # for symbol, path in spiceroot_paths.items():
+            spiceroot_kernel = os.path.expandvars(kernel)
             if os.path.isfile(spiceroot_kernel):
                 spiceroot_kernels.append(spiceroot_kernel)
             else:
