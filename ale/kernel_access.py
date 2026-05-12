@@ -49,10 +49,6 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
 
     default_paths   = {}        # dict of base paths
     spiceroot_paths = {}        # dict of spice_root-based paths
-
-    # values_section = False
-    # symbols_section = False
-    # kernels_section = False     # Are we at the kernels list section of the metakernel?
     
     # Kernel Lists
     listed_kernels    = []      # kernels with path symbols as listed in metakernel
