@@ -72,35 +72,51 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
     if extension.lower() != '.tm':
         raise ValueError(f'File {metakernel} is not a metakernel (does not have the .tm file extension).')
 
+    # Read mk into memory
     logger.debug("Reading vaules from MK file")
-
     with open(metakernel, 'r') as mk:
-        mkline = mk.readline()
-        while(not re.search(r'PATH_VALUES\s*=', mkline)):
-            mkline = mk.readline()
-        while(not re.search(r'PATH_SYMBOLS\s*=', mkline)):
-            # PATH_VALUES section
-            path_values.extend(re.findall("'(.*?)'", mkline))
-            mkline = mk.readline()
-        logger.debug(f"Path values: {path_values}")
-        while(not re.search(r'KERNELS_TO_LOAD\s*=', mkline)):
-            # PATH_SYMBOLS section
-            path_symbols.extend(re.findall("'(.*?)'", mkline))
-            mkline = mk.readline()
-        logger.debug(f"Path symbols: {path_symbols}")
-        # Create Path Dicts
+        mklines = mk.readlines()
+
+    def read_section(text_lines, opener, closers, match="'(.*?)'"):
+        matches = []
+        in_section = False
+        for line in text_lines:
+            in_section = in_section or re.search(opener, line)
+            for closer in closers:
+                if re.search(closer, line):
+                    in_section = False
+            if in_section:
+                matches.extend(re.findall(match, line))
+        return matches
+
+    # Read Path Values, Path Symbols, and Kernels to Load
+    path_values = read_section(mklines, r'PATH_VALUES\s*=', 
+                               [r'PATH_SYMBOLS\s*=', r'KERNELS_TO_LOAD\s*=', r'\\begintext'])
+
+    path_symbols = read_section(mklines, r'PATH_SYMBOLS\s*=', 
+                               [r'PATH_VALUES\s*=', r'KERNELS_TO_LOAD\s*=', r'\\begintext'])
+    
+    listed_kernels = read_section(mklines, r'KERNELS_TO_LOAD\s*=', 
+                               [r'PATH_VALUES\s*=', r'PATH_SYMBOLS\s*=', r'\\begintext'])
+
+    logger.debug(f"Path values: {path_values}")
+    logger.debug(f"Path symbols: {path_symbols}")
+    logger.debug(f"Kernels to Load from metakernel: {listed_kernels}") 
+
+    if len(listed_kernels) == 0:
+        raise ValueError(f"No kernels were found listed in this metakernel: {metakernel}")
+
+    # Create Path Dicts
+    if(len(path_symbols) != len(path_values)):
+        msg = f"The number of PATH_SYMBOLS ({len(path_symbols)})"
+        msg = msg + f"and PATH_VALUES ({len(path_values)}) found"
+        msg = msg + f"were not the same in metakernel {metakernel}."
+        raise ValueError(msg)
+    else:
         for index, key in enumerate(path_symbols):
             default_paths[key] = path_values[index]
             if check_spiceroot:
                 spiceroot_paths[key] = re.sub(old_root, new_root, path_values[index])
-        while(not re.search(r'\\begintext', mkline)):
-            # KERNELS_TO_LOAD section
-            listed_kernels.extend(re.findall("'(.*?)'", mkline))
-            mkline = mk.readline()
-        logger.debug(f"Listed Kernels in metakernel: {listed_kernels}") 
-        
-    if len(listed_kernels) == 0:
-        raise ValueError(f"No kernels were found listed in this metakernel: {metakernel}")
 
     # Set env vars (mk default)
     for symbol, path in default_paths.items():
