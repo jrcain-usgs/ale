@@ -118,13 +118,12 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
             if check_spiceroot:
                 spiceroot_paths[key] = re.sub(old_root, new_root, path_values[index])
 
-    # Set env vars (mk default)
-    for symbol, path in default_paths.items():
-        os.environ[symbol] = path
-
     # Check default mk paths for kernels
     for kernel in listed_kernels:
-        default_kernel = os.path.expandvars(kernel)
+        default_kernel = kernel
+        for symbol, path in default_paths.items():
+            default_kernel = default_kernel.replace('$' + symbol, path)
+
         if os.path.isfile(default_kernel):
             default_kernels.append(default_kernel)
         else:
@@ -135,12 +134,11 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
     # If kernels missing from default, Check spice_root paths for kernels
     if missing_default_kernels and check_spiceroot:
 
-        # Set env vars (spiceroot)
-        for symbol, path in spiceroot_paths.items():
-            os.environ[symbol] = path
-
         for kernel in listed_kernels:
-            spiceroot_kernel = os.path.expandvars(kernel)
+            spiceroot_kernel = kernel
+            for symbol, path in spiceroot_paths.items():
+                spiceroot_kernel = spiceroot_kernel.replace('$' + symbol, path)
+
             if os.path.isfile(spiceroot_kernel):
                 spiceroot_kernels.append(spiceroot_kernel)
             else:
