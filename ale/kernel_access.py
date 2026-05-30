@@ -156,21 +156,15 @@ def get_kernels_from_metakernel(metakernel, new_root=spice_root, old_root='/usgs
     elif not missing_spiceroot_kernels and len(spiceroot_kernels) > 0:
         return spiceroot_kernels
     
-    # No Kernels found
-    elif len(default_kernels) == 0 and len(spiceroot_kernels) == 0:
-        errmsg = f"""No kernels from this metakernel ({metakernel}) were found.
-                     ALE checked at the paths from the metakernel: {path_values}"""
-        if check_spiceroot:
-            errmsg = errmsg + f"\nALE checked at the ALESPICEROOT path: {new_root}"
-        raise FileNotFoundError(errmsg)
-
-    # Some kernels found, but some missing.
-    errmsg = f"""Some kernels from this metakernel were found, 
-                 but all the necessary kernels were not found in the same place."
-                 ALE checked at the paths from the metakernel: {path_values}"""
-    if check_spiceroot:
-        errmsg = errmsg + f"\nALE checked at the ALESPICEROOT path: {new_root}"
-    raise FileNotFoundError(errmsg) 
+    # Kernels missing, Error message
+    errmsg = f"""One or more kernels from this metakernel ({metakernel}) were not found... 
+                {len(default_kernels)} found under paths from metakernel: {path_values}; 
+                Missing kernels under metakernel path? {missing_default_kernels}; 
+                {len(spiceroot_kernels)} found under ALESPICEROOT path: {new_root}; 
+                Missing kernels under ALESPICEROOT path? {missing_spiceroot_kernels}; 
+                (If one kernel was missing, ALE did not search for more kernels under the same path.)
+                """
+    raise FileNotFoundError(errmsg)
 
 def get_metakernels(spice_dir=spice_root, missions=set(), years=set(), versions=set()):
     """
