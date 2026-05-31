@@ -227,11 +227,14 @@ def rotate_state(table, rotation):
         rotated_vel = None
     return rotated_pos, rotated_vel, ephemeris_times
 
+
 def get_naif_keyword(self, ale_name, naif_key):
     val = self.naif_keywords.get(naif_key, None)
     if val is None:
-        raise LookupError('Could not find a value for {} using the NAIF Keyword {}'.format(ale_name, naif_key))
+        raise LookupError('Could not find a value for {} using the NAIF Keyword {}. Available keys: {}'.format(ale_name, naif_key, list(self.naif_keywords.keys())))
     return val
+
+
 class IsisSpice():
     """
     Mixin class for reading from an ISIS cube that has been spiceinit'd

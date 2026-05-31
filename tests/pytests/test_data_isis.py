@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch
 import pvl
 import numpy as np
-from ale.base.data_isis import IsisSpice
+from ale.base.data_isis import IsisSpice, get_naif_keyword
 
 from conftest import get_image_label
 
@@ -716,3 +716,11 @@ def test_no_tables():
         test_mix_in.inst_position_table
     with pytest.raises(KeyError):
         test_mix_in.sun_position_table
+
+
+def test_missing_naif_keyword(testdata): 
+    try: 
+      get_naif_keyword(testdata, "fake", "not_real")
+      raise Exception("expected throw for fake naif keyword")
+    except LookupError as e: 
+      pass 
